@@ -1,5 +1,5 @@
 /*
- * Copyright 2017 Red Hat, Inc. and/or its affiliates.
+ * Copyright 2021 Red Hat, Inc. and/or its affiliates.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -14,13 +14,21 @@
  * limitations under the License.
  */
 
-package org.jbpm.services.cdi.test;
+package org.jbpm.test.listener.process;
 
-import javax.enterprise.context.ApplicationScoped;
+import org.kie.api.event.process.ProcessCompletedEvent;
 
-import org.jbpm.test.services.TestIdentityProviderImpl;
+public class ProcessCompletedCountDownProcessEventListener extends DefaultCountDownProcessEventListener {
 
-@ApplicationScoped
-public class TestIdentifyProviderCDI extends TestIdentityProviderImpl {
+    public ProcessCompletedCountDownProcessEventListener() {
+    }
 
+    public ProcessCompletedCountDownProcessEventListener(int threads) {
+        super(threads);
+    }
+
+    @Override
+    public void afterProcessCompleted(ProcessCompletedEvent event) {
+        countDown();
+    }
 }

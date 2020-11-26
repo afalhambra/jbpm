@@ -25,18 +25,24 @@ import org.jbpm.persistence.api.PersistenceEnvironmentName;
 import org.jbpm.services.task.audit.impl.model.AuditTaskImpl;
 import org.jbpm.services.task.audit.impl.model.BAMTaskSummaryImpl;
 import org.jbpm.services.task.audit.impl.model.TaskEventImpl;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 public class TaskAuditJbpmEntityContributor implements JbpmEntityContributor {
+
+    private static final Logger log = LoggerFactory.getLogger(TaskAuditJbpmEntityContributor.class);
 
     @Override
     public List<String> disableInsertChecks() {
         if(!PersistenceEnvironmentName.DISABLE_ENTITY_CHECKS) {
             return Collections.emptyList();
         }
-        return Arrays.asList(
+        List<String> entities = Arrays.asList(
                 AuditTaskImpl.class.getCanonicalName(),
                 TaskEventImpl.class.getCanonicalName(),
                 BAMTaskSummaryImpl.class.getCanonicalName());
+        log.info("disabling row count check for entities {}", entities);
+        return entities;
     }
 
 }

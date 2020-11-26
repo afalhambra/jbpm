@@ -29,9 +29,8 @@
         status varchar(255),
         taskId int8,
         workItemId int8,
-        lastModificationDate timestamp,
-        primary key (id)
-    );
+        lastModificationDate timestamp
+    ) partition by range(processInstanceId);
 
     create table BAMTaskSummary (
         pk int8 not null,
@@ -44,9 +43,8 @@
         taskId int8 not null,
         taskName varchar(255),
         userId varchar(255),
-        OPTLOCK int4,
-        primary key (pk)
-    );
+        OPTLOCK int4
+    ) partition by range(processInstanceId);
 
     create table BooleanExpression (
         id int8 not null,
@@ -215,9 +213,8 @@
         type int4 not null,
         workItemId int8,
         nodeContainerId varchar(255),
-        referenceId int8,
-        primary key (id)
-    );
+        referenceId int8
+    ) partition by range(processInstanceId);
 
     create table Notification (
         DTYPE varchar(31) not null,
@@ -305,9 +302,8 @@
         sla_due_date timestamp,
         slaCompliance int4,
         start_date timestamp,
-        status int4,
-        primary key (id)
-    );
+        status int4
+    ) partition by range(processInstanceId);
 
     create table QueryDefinitionStore (
         id int8 not null,
@@ -414,9 +410,8 @@
         OPTLOCK int4,
         workItemId int8,
         correlationKey varchar(255),
-        processType int4,
-        primary key (id)
-    );
+        processType int4
+    ) partition by range(processInstanceId);
 
     create table TaskVariableImpl (
         id int8 not null,
@@ -439,9 +434,8 @@
         processInstanceId int8 not null,
         value varchar(255),
         variableId varchar(255),
-        variableInstanceId varchar(255),
-        primary key (id)
-    );
+        variableInstanceId varchar(255)
+    ) partition by range(processInstanceId);
 
     create table WorkItemInfo (
         workItemId int8 not null,
@@ -830,6 +824,7 @@
     create index IDX_Task_archived on Task(archived);
     create index IDX_Task_workItemId on Task(workItemId);
 
+    create index IDX_TaskEvent_id on TaskEvent (id);
     create index IDX_TaskEvent_taskId on TaskEvent (taskId);
 
     create index IDX_EventTypes_element ON EventTypes(element);
@@ -841,7 +836,8 @@
     create index IDX_RequestInfo_status ON RequestInfo(status);
     create index IDX_RequestInfo_timestamp ON RequestInfo(timestamp); -- remove this index on PostgreSQLPlus as it does not allow timestamp in column list 
     create index IDX_RequestInfo_owner ON RequestInfo(owner);
-    
+
+    create index IDX_BAMTaskSumm_pk on BAMTaskSummary(pk);
     create index IDX_BAMTaskSumm_createdDate on BAMTaskSummary(createdDate);
     create index IDX_BAMTaskSumm_duration on BAMTaskSummary(duration);
     create index IDX_BAMTaskSumm_endDate on BAMTaskSummary(endDate);
@@ -851,7 +847,8 @@
     create index IDX_BAMTaskSumm_taskId on BAMTaskSummary(taskId);
     create index IDX_BAMTaskSumm_taskName on BAMTaskSummary(taskName);
     create index IDX_BAMTaskSumm_userId on BAMTaskSummary(userId);
-    
+
+    create index IDX_PInstLog_id on ProcessInstanceLog(id);
     create index IDX_PInstLog_duration on ProcessInstanceLog(duration);
     create index IDX_PInstLog_end_date on ProcessInstanceLog(end_date);
     create index IDX_PInstLog_extId on ProcessInstanceLog(externalId);
@@ -867,10 +864,12 @@
     create index IDX_PInstLog_status on ProcessInstanceLog(status);
     create index IDX_PInstLog_correlation on ProcessInstanceLog(correlationKey);
 
+    create index IDX_VInstLog_id on VariableInstanceLog(id);
     create index IDX_VInstLog_pInstId on VariableInstanceLog(processInstanceId);
     create index IDX_VInstLog_varId on VariableInstanceLog(variableId);
     create index IDX_VInstLog_pId on VariableInstanceLog(processId);
 
+    create index IDX_NInstLog_id on NodeInstanceLog(id);
     create index IDX_NInstLog_pInstId on NodeInstanceLog(processInstanceId);
     create index IDX_NInstLog_nodeType on NodeInstanceLog(nodeType);
     create index IDX_NInstLog_pId on NodeInstanceLog(processId);
@@ -879,6 +878,7 @@
     create index IDX_ErrorInfo_pInstId on ExecutionErrorInfo(PROCESS_INST_ID);
     create index IDX_ErrorInfo_errorAck on ExecutionErrorInfo(ERROR_ACK);
 
+    create index IDX_AuditTaskImpl_id on AuditTaskImpl(id);
     create index IDX_AuditTaskImpl_taskId on AuditTaskImpl(taskId);
     create index IDX_AuditTaskImpl_pInstId on AuditTaskImpl(processInstanceId);
     create index IDX_AuditTaskImpl_workItemId on AuditTaskImpl(workItemId);

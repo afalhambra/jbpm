@@ -33,13 +33,17 @@ import org.jbpm.services.api.model.DeploymentUnit;
 import org.jbpm.services.api.query.QueryService;
 import org.jbpm.services.api.service.ServiceRegistry;
 import org.jbpm.services.api.utils.KieServiceConfigurator;
+import org.jbpm.services.task.HumanTaskServiceFactory;
+import org.jbpm.services.task.audit.service.TaskJPAAuditService;
 import org.junit.After;
 import org.junit.Before;
+import org.kie.api.runtime.manager.audit.AuditService;
 import org.kie.internal.runtime.conf.DeploymentDescriptor;
 import org.kie.internal.runtime.conf.DeploymentDescriptorBuilder;
 import org.kie.internal.runtime.conf.NamedObjectModel;
 import org.kie.internal.runtime.conf.ObjectModel;
 import org.kie.internal.runtime.manager.deploy.DeploymentDescriptorImpl;
+import org.kie.internal.task.api.InternalTaskService;
 
 public abstract class AbstractKieServicesTest extends AbstractServicesTest {
 
@@ -49,11 +53,13 @@ public abstract class AbstractKieServicesTest extends AbstractServicesTest {
     protected ProcessService processService;
     protected UserTaskService userTaskService;
     protected QueryService queryService;
+    protected InternalTaskService internalTaskService;
     protected ProcessInstanceAdminService processAdminService;
     protected AdvanceRuntimeDataService advanceVariableDataService;
+    protected AuditService auditService;
 
-    protected TestIdentityProvider identityProvider;
-    protected TestUserGroupCallbackImpl userGroupCallback;
+    protected TestIdentityProvider identityProvider = new TestIdentityProviderImpl();
+    protected TestUserGroupCallback userGroupCallback = new TestUserGroupCallbackImpl();
 
     protected KieServiceConfigurator serviceConfigurator;
     
@@ -64,12 +70,23 @@ public abstract class AbstractKieServicesTest extends AbstractServicesTest {
         loadServiceConfigurator();
     }
 
+    protected AbstractKieServicesTest(TestIdentityProvider identityProvider, TestUserGroupCallback userGroupCallback) {
+        this();
+        if (identityProvider != null) {
+            this.identityProvider = identityProvider;
+        }
+        if (userGroupCallback != null) {
+            this.userGroupCallback = userGroupCallback;
+        }
+    }
+
     protected void loadServiceConfigurator() {
         this.serviceConfigurator = ServiceLoader.load(KieServiceConfigurator.class).iterator().next();
     }
     
     @Before
     public void setUp() throws Exception {
+        setSystemProperties();
         prepareDocumentStorage();
         configureServices();
         deploymentUnit = prepareDeploymentUnit();
@@ -81,6 +98,7 @@ public abstract class AbstractKieServicesTest extends AbstractServicesTest {
         if (identityProvider != null) {
             identityProvider.reset();      
         }
+        clearSystemProperties();
         cleanupSingletonSessionId();
 
         if (deploymentUnit != null) {
@@ -102,9 +120,6 @@ public abstract class AbstractKieServicesTest extends AbstractServicesTest {
 
     protected void configureServices() {
         buildDatasource();
-
-        identityProvider = new TestIdentityProvider();
-        userGroupCallback = new TestUserGroupCallbackImpl();
 
         serviceConfigurator.configureServices(puName, identityProvider, userGroupCallback);
 
@@ -129,6 +144,16 @@ public abstract class AbstractKieServicesTest extends AbstractServicesTest {
         processAdminService = serviceConfigurator.getProcessAdminService();
         
         advanceVariableDataService = serviceConfigurator.getAdvanceVariableDataService();
+
+        if (emf == null) {
+            emf = EntityManagerFactoryManager.get().getOrCreate(puName);
+        }
+
+        internalTaskService = (InternalTaskService)  HumanTaskServiceFactory.newTaskServiceConfigurator()
+                .entityManagerFactory(emf)
+                .getTaskService();
+
+        auditService = new TaskJPAAuditService(emf);
     }
 
     @Override
@@ -194,12 +219,34 @@ public abstract class AbstractKieServicesTest extends AbstractServicesTest {
     public void setUserGroupCallback(TestUserGroupCallbackImpl userGroupCallback) {
         this.userGroupCallback = userGroupCallback;
     }
-    
+
+    public InternalTaskService getInternalTaskService() {
+        return internalTaskService;
+    }
+
+    public void setInternalTaskService(InternalTaskService internalTaskService) {
+        this.internalTaskService = internalTaskService;
+    }
+
+    public void setAuditService(AuditService auditService) {
+        this.auditService = auditService;
+    }
+
     protected abstract List<String> getProcessDefinitionFiles();
 
     protected void setPuName(String puName) {
         if (puName != null && !puName.equals("")) {
             this.puName = puName;
         }
+    }
+
+    protected void setSystemProperties() {
+        System.setProperty("org.jbpm.ht.callback", "custom");
+        System.setProperty("org.jbpm.ht.custom.callback", userGroupCallback.getClass().getCanonicalName());
+    }
+
+    protected void clearSystemProperties() {
+        System.clearProperty("org.jbpm.ht.callback");
+        System.clearProperty("org.jbpm.ht.custom.callback");
     }
 }

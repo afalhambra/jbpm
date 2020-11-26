@@ -355,7 +355,7 @@ public abstract class AbstractRuntimeManager implements InternalRuntimeManager {
     	if (txm != null && txm instanceof TransactionManager) {
     		return (TransactionManager) txm;
     	}
-    	
+
     	return TransactionManagerFactory.get().newTransactionManager(env);
     }
     
