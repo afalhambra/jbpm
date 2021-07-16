@@ -16,15 +16,11 @@
 
 package org.jbpm.executor.impl.wih;
 
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertFalse;
-import static org.junit.Assert.assertNotNull;
-import static org.junit.Assert.assertNull;
-
 import java.io.ByteArrayInputStream;
 import java.io.ObjectInputStream;
 import java.util.List;
 import java.util.Properties;
+import java.util.stream.Collectors;
 
 import javax.persistence.EntityManagerFactory;
 
@@ -36,7 +32,6 @@ import org.jbpm.runtime.manager.impl.jpa.EntityManagerFactoryManager;
 import org.jbpm.services.task.identity.JBossUserGroupCallbackImpl;
 import org.jbpm.test.util.AbstractExecutorBaseTest;
 import org.jbpm.test.util.ExecutorTestUtil;
-import org.kie.test.util.db.PoolingDataSourceWrapper;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
@@ -59,6 +54,14 @@ import org.kie.api.task.model.TaskSummary;
 import org.kie.internal.io.ResourceFactory;
 import org.kie.internal.runtime.manager.RuntimeManagerRegistry;
 import org.kie.internal.runtime.manager.context.EmptyContext;
+import org.kie.test.util.db.PoolingDataSourceWrapper;
+
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertNotNull;
+import static org.junit.Assert.assertNull;
+import static org.kie.api.runtime.manager.audit.NodeInstanceLog.TYPE_ENTER;
+import static org.kie.api.runtime.manager.audit.NodeInstanceLog.TYPE_EXIT;
 
 public class SLATrackingCommandTest extends AbstractExecutorBaseTest {
 
@@ -158,15 +161,14 @@ public class SLATrackingCommandTest extends AbstractExecutorBaseTest {
         
         List<TaskSummary> tasks = runtime.getTaskService().getTasksAssignedAsPotentialOwner("john", "en-UK");
         assertEquals(1, tasks.size());
-        
+
         JPAAuditLogService logService = new JPAAuditLogService(emf);
-                
-        assertNodeInstanceSLACompliance(logService, processInstance.getId(), "Hello", ProcessInstance.SLA_PENDING);
+        assertNodeInstanceSLACompliance(logService, processInstance.getId(), "Hello", ProcessInstance.SLA_PENDING, TYPE_ENTER);
         
         scheduleSLATracking(manager.getIdentifier());
         countDownListener.waitTillCompleted();
        
-        assertNodeInstanceSLACompliance(logService, processInstance.getId(), "Hello", ProcessInstance.SLA_PENDING);
+        assertNodeInstanceSLACompliance(logService, processInstance.getId(), "Hello", ProcessInstance.SLA_PENDING, TYPE_ENTER);
         // wait for due date of SLA to pass
         Thread.sleep(3000);
         
@@ -177,11 +179,11 @@ public class SLATrackingCommandTest extends AbstractExecutorBaseTest {
         runtime.getTaskService().start(tasks.get(0).getId(), "john");
         runtime.getTaskService().complete(tasks.get(0).getId(), "john", null);
               
-        assertNodeInstanceSLACompliance(logService, processInstance.getId(), "Hello", ProcessInstance.SLA_VIOLATED);
+        assertNodeInstanceSLACompliance(logService, processInstance.getId(), "Hello", ProcessInstance.SLA_VIOLATED, TYPE_EXIT);
     }
     
     @Test
-    public void testSLATrackingOnProcessInstanceSLAMet() throws Exception {
+    public void testSLATrackingOnProcessInstanceSLAMet() {
         CountDownAsyncJobListener countDownListener = configureListener(1);
         RuntimeEnvironment environment = RuntimeEnvironmentBuilder.Factory.get().newDefaultBuilder()
                 .userGroupCallback(userGroupCallback)
@@ -202,9 +204,9 @@ public class SLATrackingCommandTest extends AbstractExecutorBaseTest {
         
         List<TaskSummary> tasks = runtime.getTaskService().getTasksAssignedAsPotentialOwner("john", "en-UK");
         assertEquals(1, tasks.size());
-        
+
         JPAAuditLogService logService = new JPAAuditLogService(emf);
-                
+
         assertProcessInstanceSLACompliance(logService, processInstance.getId(), ProcessInstance.SLA_PENDING);
         
         scheduleSLATracking(manager.getIdentifier());
@@ -219,7 +221,7 @@ public class SLATrackingCommandTest extends AbstractExecutorBaseTest {
     }
     
     @Test
-    public void testSLATrackingOnUserTaskSLAMet() throws Exception {
+    public void testSLATrackingOnUserTaskSLAMet() {
         CountDownAsyncJobListener countDownListener = configureListener(1);
         RuntimeEnvironment environment = RuntimeEnvironmentBuilder.Factory.get().newDefaultBuilder()
                 .userGroupCallback(userGroupCallback)
@@ -240,20 +242,19 @@ public class SLATrackingCommandTest extends AbstractExecutorBaseTest {
         
         List<TaskSummary> tasks = runtime.getTaskService().getTasksAssignedAsPotentialOwner("john", "en-UK");
         assertEquals(1, tasks.size());
-        
+
         JPAAuditLogService logService = new JPAAuditLogService(emf);
-                
-        assertNodeInstanceSLACompliance(logService, processInstance.getId(), "Hello", ProcessInstance.SLA_PENDING);
+        assertNodeInstanceSLACompliance(logService, processInstance.getId(), "Hello", ProcessInstance.SLA_PENDING, TYPE_ENTER);
         
         scheduleSLATracking(manager.getIdentifier());
         countDownListener.waitTillCompleted();
        
-        assertNodeInstanceSLACompliance(logService, processInstance.getId(), "Hello", ProcessInstance.SLA_PENDING);        
+        assertNodeInstanceSLACompliance(logService, processInstance.getId(), "Hello", ProcessInstance.SLA_PENDING, TYPE_ENTER);
         
         runtime.getTaskService().start(tasks.get(0).getId(), "john");
         runtime.getTaskService().complete(tasks.get(0).getId(), "john", null);
               
-        assertNodeInstanceSLACompliance(logService, processInstance.getId(), "Hello", ProcessInstance.SLA_MET);
+        assertNodeInstanceSLACompliance(logService, processInstance.getId(), "Hello", ProcessInstance.SLA_MET, TYPE_EXIT);
     }
    
     @Test
@@ -326,15 +327,19 @@ public class SLATrackingCommandTest extends AbstractExecutorBaseTest {
         assertEquals(slaCompliance, ((org.jbpm.process.audit.ProcessInstanceLog)log).getSlaCompliance().intValue());
 	}
 	
-   private void assertNodeInstanceSLACompliance(JPAAuditLogService logService, Long processInstanceId, String name, int slaCompliance) {
-        List<NodeInstanceLog> logs = logService.nodeInstanceLogQuery()
-                .processInstanceId(processInstanceId).and()
-                .nodeName(name)                
-                .build()
-                .getResultList();
-                        
-        NodeInstanceLog log = logs.get(logs.size() - 1);
-        assertEquals(processInstanceId, log.getProcessInstanceId());
-        assertEquals(slaCompliance, ((org.jbpm.process.audit.NodeInstanceLog)log).getSlaCompliance().intValue());
+   private void assertNodeInstanceSLACompliance(JPAAuditLogService logService, Long processInstanceId, String name, int slaCompliance, int type) {
+       List<NodeInstanceLog> logs = logService.nodeInstanceLogQuery()
+               .processInstanceId(processInstanceId).and()
+               .nodeName(name).and()
+               .build()
+               .getResultList()
+               .stream()
+               .filter(log -> log.getType() == type)
+               .collect(Collectors.toList());
+
+       assertEquals(1, logs.size());
+       NodeInstanceLog log = logs.get(0);
+       assertEquals(processInstanceId, log.getProcessInstanceId());
+       assertEquals(slaCompliance, ((org.jbpm.process.audit.NodeInstanceLog)log).getSlaCompliance().intValue());
     }
 }
